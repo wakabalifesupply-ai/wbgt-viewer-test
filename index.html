@@ -114,9 +114,11 @@ document.getElementById('btnApi').addEventListener('click', async () => {
   resultEl.textContent = '通信中...';
 
   const now = new Date();
-  const to = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // 2日後
-  const from = formatDate14(now);
-  const toStr = formatDate14(to);
+  // range_date_from/to は「予測データの発表時刻」で絞り込む仕様のため、
+  // 「今日0時〜現在時刻」を指定して直近の発表分を取得する。
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const from = formatDate14(todayStart);
+  const toStr = formatDate14(now);
 
   const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=44132&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${toStr}`;
 
