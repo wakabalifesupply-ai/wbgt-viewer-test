@@ -313,8 +313,9 @@ function exportExcel() {
   const rows = [];
   rows.push(['区分', '時刻', ...STATIONS.map(s => s.name)]);
 
-  TOMORROW_HOURS.forEach(h => {
-    const row = ['翌日', h];
+  // 翌日ブロック：1行目だけ「翌日」、以降は空文字（あとでセル結合する）
+  TOMORROW_HOURS.forEach((h, idx) => {
+    const row = [idx === 0 ? '翌日' : '', h];
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.tomorrow[h];
@@ -324,8 +325,9 @@ function exportExcel() {
     rows.push(row);
   });
 
-  DAYAFTER_HOURS.forEach(h => {
-    const row = ['翌々日', h];
+  // 翌々日ブロック：1行目だけ「翌々日」、以降は空文字
+  DAYAFTER_HOURS.forEach((h, idx) => {
+    const row = [idx === 0 ? '翌々日' : '', h];
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.dayAfter[h];
@@ -337,6 +339,18 @@ function exportExcel() {
 
   try {
     const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // A列のセル結合：ヘッダー行の次(1行目)から翌日ブロック分、その後に翌々日ブロック分
+    const tomorrowStartRow = 1; // 0始まり。0行目はヘッダー
+    const tomorrowEndRow = tomorrowStartRow + TOMORROW_HOURS.length - 1;
+    const dayAfterStartRow = tomorrowEndRow + 1;
+    const dayAfterEndRow = dayAfterStartRow + DAYAFTER_HOURS.length - 1;
+
+    ws['!merges'] = [
+      { s: { r: tomorrowStartRow, c: 0 }, e: { r: tomorrowEndRow, c: 0 } },
+      { s: { r: dayAfterStartRow, c: 0 }, e: { r: dayAfterEndRow, c: 0 } },
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'WBGT');
 
