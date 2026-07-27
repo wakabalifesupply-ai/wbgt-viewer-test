@@ -16,35 +16,15 @@
   header {
     background: #1e3a5f;
     color: #fff;
-    padding: 16px 16px 14px;
+    padding: 14px 16px 12px;
   }
   header h1 { font-size: 17px; margin: 0; }
   header .updated { font-size: 11px; color: #b9c9dd; margin-top: 2px; }
-  main { padding: 16px; }
 
-  /* ---- 地点選択画面 ---- */
-  #screenList .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-  #screenList button.station-btn {
-    background: #fff;
-    border: 1px solid #d8dee6;
-    border-radius: 10px;
-    padding: 16px 8px;
-    font-size: 15px;
-    color: #1a1a1a;
-    text-align: center;
-  }
-  #screenList button.station-btn:active { background: #eef2f7; }
-
-  /* ---- 詳細画面 ---- */
-  #screenDetail { display: none; }
   .toolbar {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    padding: 12px 16px;
   }
   .toolbar button {
     flex: 1;
@@ -54,33 +34,12 @@
     border: none;
     color: #fff;
   }
-  #btnBack { background: #6b7280; }
   #btnRefresh { background: #2563eb; }
   #btnCopy { background: #059669; }
   .toolbar button:active { opacity: 0.85; }
 
-  #stationTitle { font-size: 18px; font-weight: bold; margin: 4px 0 2px; }
-  #refInfo { font-size: 12px; color: #667; margin-bottom: 10px; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  th, td {
-    border: 1px solid #e2e6ea;
-    padding: 8px 4px;
-    text-align: center;
-    font-size: 15px;
-  }
-  th { background: #eef2f7; font-size: 13px; }
-  .val-missing { color: #b91c1c; font-size: 12px; }
-  .val-empty { color: #ccc; }
-
   #statusBox {
-    margin-top: 12px;
+    margin: 0 16px 10px;
     padding: 10px;
     border-radius: 8px;
     font-size: 13px;
@@ -88,6 +47,47 @@
   .status-ok  { background: #ecfdf5; color: #065f46; }
   .status-ng  { background: #fef2f2; color: #991b1b; }
   .status-wait{ background: #f3f4f6; color: #666; }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 16px 16px;
+    background: #fff;
+    border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  th, td {
+    border: 1px solid #e2e6ea;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 14px;
+  }
+  thead th {
+    background: #eef2f7;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  th.time-col, td.time-col {
+    position: sticky;
+    left: 0;
+    background: #eef2f7;
+    z-index: 1;
+    font-weight: bold;
+  }
+  tr.section-row td {
+    background: #dbe4ee;
+    font-weight: bold;
+    text-align: left;
+    position: sticky;
+    left: 0;
+  }
+  .val-missing { color: #b91c1c; font-size: 12px; }
+  .val-error { color: #b91c1c; }
 
   #copyToast {
     position: fixed;
@@ -105,35 +105,24 @@
 
 <header>
   <h1>WBGT Viewer</h1>
-  <div class="updated" id="headerSub">地点を選択してください</div>
+  <div class="updated" id="headerSub">全11地点 一覧</div>
 </header>
 
-<main>
+<div class="toolbar">
+  <button id="btnRefresh">更新</button>
+  <button id="btnCopy">コピー</button>
+</div>
 
-  <!-- 地点選択画面 -->
-  <div id="screenList">
-    <div class="grid" id="stationGrid"></div>
-  </div>
+<div id="statusBox" class="status-wait">読み込み中...</div>
 
-  <!-- 詳細画面 -->
-  <div id="screenDetail">
-    <div class="toolbar">
-      <button id="btnBack">戻る</button>
-      <button id="btnRefresh">更新</button>
-      <button id="btnCopy">コピー</button>
-    </div>
-    <div id="stationTitle"></div>
-    <div id="refInfo"></div>
-    <table id="dataTable">
-      <thead>
-        <tr><th>時刻</th><th>翌日</th><th>翌々日</th></tr>
-      </thead>
-      <tbody id="dataBody"></tbody>
-    </table>
-    <div id="statusBox" class="status-wait">読み込み中...</div>
-  </div>
-
-</main>
+<div class="table-wrap">
+  <table id="dataTable">
+    <thead>
+      <tr id="headerRow"><th class="time-col">時刻</th></tr>
+    </thead>
+    <tbody id="dataBody"></tbody>
+  </table>
+</div>
 
 <div id="copyToast">コピーしました</div>
 
@@ -155,11 +144,11 @@ const STATIONS = [
   { name: '山梨（山中）', no: 49256 },
 ];
 
-const TOMORROW_HOURS  = [6, 9, 12, 15, 18, 21, 24]; // 翌日7コマ
-const DAYAFTER_HOURS  = [3, 6, 9, 12, 15, 18, 21, 24]; // 翌々日8コマ
-const ALL_HOURS_ORDER = [3, 6, 9, 12, 15, 18, 21, 24];
+const TOMORROW_HOURS = [6, 9, 12, 15, 18, 21, 24];        // 翌日7コマ
+const DAYAFTER_HOURS = [3, 6, 9, 12, 15, 18, 21, 24];     // 翌々日8コマ
 
-let currentStation = null;
+let latestResults = null; // { stationNo: { latestRef, byTime } | null(失敗) }
+let latestSlots = null;
 
 // ---- ユーティリティ ----
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -202,97 +191,107 @@ async function fetchStationData(station) {
   const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=${station.no}&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${to}`;
 
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`APIエラー（HTTP ${res.status}）`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   if (!json || json.status !== 'success' || !Array.isArray(json.data) || json.data.length === 0) {
-    throw new Error('データが取得できませんでした（データ0件）');
+    throw new Error('データ0件');
   }
-
   const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
   const latestOnly = json.data.filter(d => d.reference_time === latestRef);
-
   const byTime = {};
   latestOnly.forEach(d => { byTime[d.forecast_time] = d.forecast_val; });
-
   return { latestRef, byTime };
 }
 
 // ---- 画面描画 ----
-function renderStationGrid() {
-  const grid = document.getElementById('stationGrid');
-  grid.innerHTML = '';
+function renderHeader() {
+  const headerRow = document.getElementById('headerRow');
+  headerRow.innerHTML = '<th class="time-col">時刻</th>';
   STATIONS.forEach(station => {
-    const btn = document.createElement('button');
-    btn.className = 'station-btn';
-    btn.textContent = station.name;
-    btn.addEventListener('click', () => openStation(station));
-    grid.appendChild(btn);
+    const th = document.createElement('th');
+    th.textContent = station.name;
+    headerRow.appendChild(th);
   });
 }
 
-function showScreen(name) {
-  document.getElementById('screenList').style.display = name === 'list' ? 'block' : 'none';
-  document.getElementById('screenDetail').style.display = name === 'detail' ? 'block' : 'none';
-  document.getElementById('headerSub').textContent = name === 'list' ? '地点を選択してください' : currentStation.name;
+function cellValue(result, key) {
+  if (!result) return '<span class="val-error">—</span>';
+  const val = key ? result.byTime[key] : undefined;
+  if (!key) return '';
+  return val !== undefined ? Math.round(parseFloat(val) / 10) : '<span class="val-missing">なし</span>';
 }
 
-async function openStation(station) {
-  currentStation = station;
-  showScreen('detail');
-  document.getElementById('stationTitle').textContent = station.name;
-  await loadAndRenderData();
-}
-
-async function loadAndRenderData() {
-  const statusBox = document.getElementById('statusBox');
-  const refInfo = document.getElementById('refInfo');
+function renderTable() {
   const tbody = document.getElementById('dataBody');
-
-  statusBox.className = 'status-wait';
-  statusBox.textContent = '読み込み中...';
-  refInfo.textContent = '';
   tbody.innerHTML = '';
 
-  const slots = getTargetSlots();
+  // --- 翌日セクション ---
+  const sectionTomorrow = document.createElement('tr');
+  sectionTomorrow.className = 'section-row';
+  sectionTomorrow.innerHTML = `<td colspan="${STATIONS.length + 1}">（翌日）</td>`;
+  tbody.appendChild(sectionTomorrow);
 
-  try {
-    const result = await fetchStationData(currentStation);
-    refInfo.textContent = `発表時刻: ${result.latestRef}`;
-
-    ALL_HOURS_ORDER.forEach(h => {
-      const tKey = slots.tomorrow[h];
-      const dKey = slots.dayAfter[h];
-
-      const tVal = tKey ? result.byTime[tKey] : undefined;
-      const dVal = dKey ? result.byTime[dKey] : undefined;
-
-      const tCell = !tKey ? '' :
-        (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : '<span class="val-missing">データなし</span>');
-      const dCell = !dKey ? '' :
-        (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : '<span class="val-missing">データなし</span>');
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${h}</td><td>${tCell}</td><td>${dCell}</td>`;
-      tbody.appendChild(tr);
+  TOMORROW_HOURS.forEach(h => {
+    const tr = document.createElement('tr');
+    let html = `<td class="time-col">${h}</td>`;
+    STATIONS.forEach(station => {
+      const result = latestResults[station.no];
+      const key = latestSlots.tomorrow[h];
+      html += `<td>${cellValue(result, key)}</td>`;
     });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
 
+  // --- 翌々日セクション ---
+  const sectionDayAfter = document.createElement('tr');
+  sectionDayAfter.className = 'section-row';
+  sectionDayAfter.innerHTML = `<td colspan="${STATIONS.length + 1}">（翌々日）</td>`;
+  tbody.appendChild(sectionDayAfter);
+
+  DAYAFTER_HOURS.forEach(h => {
+    const tr = document.createElement('tr');
+    let html = `<td class="time-col">${h}</td>`;
+    STATIONS.forEach(station => {
+      const result = latestResults[station.no];
+      const key = latestSlots.dayAfter[h];
+      html += `<td>${cellValue(result, key)}</td>`;
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadAndRenderAll() {
+  const statusBox = document.getElementById('statusBox');
+  statusBox.className = 'status-wait';
+  statusBox.textContent = '読み込み中... (0/' + STATIONS.length + ')';
+
+  latestSlots = getTargetSlots();
+  latestResults = {};
+
+  let successCount = 0;
+  let errorStations = [];
+
+  for (let i = 0; i < STATIONS.length; i++) {
+    const station = STATIONS[i];
+    try {
+      latestResults[station.no] = await fetchStationData(station);
+      successCount++;
+    } catch (err) {
+      latestResults[station.no] = null;
+      errorStations.push(station.name);
+    }
+    statusBox.textContent = `読み込み中... (${i + 1}/${STATIONS.length})`;
+    renderTable(); // 逐次描画（体感速度向上）
+  }
+
+  if (errorStations.length === 0) {
     statusBox.className = 'status-ok';
-    statusBox.textContent = '取得完了';
-
-    // コピー用に最新データを保持
-    currentStation._latestResult = result;
-    currentStation._latestSlots = slots;
-
-  } catch (err) {
+    statusBox.textContent = `取得完了（全${STATIONS.length}地点）`;
+  } else {
     statusBox.className = 'status-ng';
-    statusBox.textContent = `取得失敗: ${err.message}`;
-    // 誤った数値を表示しないよう、テーブルは空のまま（時刻列のみ表示）
-    ALL_HOURS_ORDER.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${h}</td><td>—</td><td>—</td>`;
-      tbody.appendChild(tr);
-    });
-    currentStation._latestResult = null;
+    statusBox.textContent = `一部取得失敗: ${errorStations.join('、')}`;
   }
 }
 
@@ -303,27 +302,37 @@ function showToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 1500);
 }
 
-async function copyCurrentData() {
-  if (!currentStation || !currentStation._latestResult) {
+async function copyAllData() {
+  if (!latestResults || !latestSlots) {
     showToast('コピーできるデータがありません');
     return;
   }
-  const result = currentStation._latestResult;
-  const slots = currentStation._latestSlots;
 
   const lines = [];
-  lines.push(currentStation.name);
-  lines.push('');
-  lines.push('時刻\t翌日\t翌々日');
+  lines.push(['時刻', ...STATIONS.map(s => s.name)].join('\t'));
 
-  ALL_HOURS_ORDER.forEach(h => {
-    const tKey = slots.tomorrow[h];
-    const dKey = slots.dayAfter[h];
-    const tVal = tKey ? result.byTime[tKey] : undefined;
-    const dVal = dKey ? result.byTime[dKey] : undefined;
-    const tCell = !tKey ? '' : (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : '');
-    const dCell = !dKey ? '' : (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : '');
-    lines.push(`${h}\t${tCell}\t${dCell}`);
+  lines.push('（翌日）');
+  TOMORROW_HOURS.forEach(h => {
+    const row = [h];
+    STATIONS.forEach(station => {
+      const result = latestResults[station.no];
+      const key = latestSlots.tomorrow[h];
+      const val = result && key ? result.byTime[key] : undefined;
+      row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
+    });
+    lines.push(row.join('\t'));
+  });
+
+  lines.push('（翌々日）');
+  DAYAFTER_HOURS.forEach(h => {
+    const row = [h];
+    STATIONS.forEach(station => {
+      const result = latestResults[station.no];
+      const key = latestSlots.dayAfter[h];
+      const val = result && key ? result.byTime[key] : undefined;
+      row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
+    });
+    lines.push(row.join('\t'));
   });
 
   const tsv = lines.join('\n');
@@ -337,19 +346,16 @@ async function copyCurrentData() {
 }
 
 // ---- イベント登録 ----
-document.getElementById('btnBack').addEventListener('click', () => {
-  showScreen('list');
-});
 document.getElementById('btnRefresh').addEventListener('click', () => {
-  loadAndRenderData();
+  loadAndRenderAll();
 });
 document.getElementById('btnCopy').addEventListener('click', () => {
-  copyCurrentData();
+  copyAllData();
 });
 
 // ---- 初期化 ----
-renderStationGrid();
-showScreen('list');
+renderHeader();
+loadAndRenderAll();
 </script>
 
 </body>
