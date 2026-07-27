@@ -75,17 +75,20 @@
   th.time-col, td.time-col {
     position: sticky;
     left: 0;
+    background: #dbe4ee;
+    z-index: 1;
+    font-weight: bold;
+    min-width: 54px;
+  }
+  th.time-col2, td.time-col2 {
+    position: sticky;
+    left: 54px;
     background: #eef2f7;
     z-index: 1;
     font-weight: bold;
+    min-width: 48px;
   }
-  tr.section-row td {
-    background: #dbe4ee;
-    font-weight: bold;
-    text-align: left;
-    position: sticky;
-    left: 0;
-  }
+  thead th.time-col, thead th.time-col2 { z-index: 3; }
   .val-missing { color: #b91c1c; font-size: 12px; }
   .val-error { color: #b91c1c; }
 
@@ -206,7 +209,7 @@ async function fetchStationData(station) {
 // ---- 画面描画 ----
 function renderHeader() {
   const headerRow = document.getElementById('headerRow');
-  headerRow.innerHTML = '<th class="time-col">時刻</th>';
+  headerRow.innerHTML = '<th class="time-col">区分</th><th class="time-col2">時刻</th>';
   STATIONS.forEach(station => {
     const th = document.createElement('th');
     th.textContent = station.name;
@@ -225,15 +228,14 @@ function renderTable() {
   const tbody = document.getElementById('dataBody');
   tbody.innerHTML = '';
 
-  // --- 翌日セクション ---
-  const sectionTomorrow = document.createElement('tr');
-  sectionTomorrow.className = 'section-row';
-  sectionTomorrow.innerHTML = `<td colspan="${STATIONS.length + 1}">（翌日）</td>`;
-  tbody.appendChild(sectionTomorrow);
-
-  TOMORROW_HOURS.forEach(h => {
+  // --- 翌日ブロック（A列に「翌日」をrowspanでまとめて表示） ---
+  TOMORROW_HOURS.forEach((h, idx) => {
     const tr = document.createElement('tr');
-    let html = `<td class="time-col">${h}</td>`;
+    let html = '';
+    if (idx === 0) {
+      html += `<td class="time-col" rowspan="${TOMORROW_HOURS.length}">翌日</td>`;
+    }
+    html += `<td class="time-col2">${h}</td>`;
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.tomorrow[h];
@@ -243,15 +245,14 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 
-  // --- 翌々日セクション ---
-  const sectionDayAfter = document.createElement('tr');
-  sectionDayAfter.className = 'section-row';
-  sectionDayAfter.innerHTML = `<td colspan="${STATIONS.length + 1}">（翌々日）</td>`;
-  tbody.appendChild(sectionDayAfter);
-
-  DAYAFTER_HOURS.forEach(h => {
+  // --- 翌々日ブロック（A列に「翌々日」をrowspanでまとめて表示） ---
+  DAYAFTER_HOURS.forEach((h, idx) => {
     const tr = document.createElement('tr');
-    let html = `<td class="time-col">${h}</td>`;
+    let html = '';
+    if (idx === 0) {
+      html += `<td class="time-col" rowspan="${DAYAFTER_HOURS.length}">翌々日</td>`;
+    }
+    html += `<td class="time-col2">${h}</td>`;
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.dayAfter[h];
@@ -309,11 +310,10 @@ async function copyAllData() {
   }
 
   const lines = [];
-  lines.push(['時刻', ...STATIONS.map(s => s.name)].join('\t'));
+  lines.push(['区分', '時刻', ...STATIONS.map(s => s.name)].join('\t'));
 
-  lines.push('（翌日）');
   TOMORROW_HOURS.forEach(h => {
-    const row = [h];
+    const row = ['翌日', h];
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.tomorrow[h];
@@ -323,9 +323,8 @@ async function copyAllData() {
     lines.push(row.join('\t'));
   });
 
-  lines.push('（翌々日）');
   DAYAFTER_HOURS.forEach(h => {
-    const row = [h];
+    const row = ['翌々日', h];
     STATIONS.forEach(station => {
       const result = latestResults[station.no];
       const key = latestSlots.dayAfter[h];
