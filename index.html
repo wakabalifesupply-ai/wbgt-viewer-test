@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WBGT Viewer 事前検証（Step 0）</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: #f5f5f5;
+    color: #222;
+    line-height: 1.6;
+  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .card h2 { font-size: 15px; margin: 0 0 10px 0; }
+  button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 15px;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  button:active { background: #1d4ed8; }
+  .result {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .ok    { background: #dcfce7; border: 1px solid #22c55e; }
+  .ng    { background: #fee2e2; border: 1px solid #ef4444; }
+  .wait  { background: #f3f4f6; border: 1px solid #d1d5db; color: #888; }
+  .env   { font-size: 12px; color: #555; background: #eef2ff; border-radius: 8px; padding: 10px; }
+  .env div { margin-bottom: 4px; }
+  .label { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>WBGT Viewer 事前検証ページ（Step 0）</h1>
+<div class="sub">API通信とクリップボード書き込みが、この端末・ブラウザで動作するか確認します。</div>
+
+<div class="card">
+  <h2>1. 実行環境情報</h2>
+  <div class="env" id="envInfo"></div>
+</div>
+
+<div class="card">
+  <h2>2. 環境省WBGT API 通信テスト</h2>
+  <div style="font-size:12px;color:#666;margin-bottom:10px;">
+    東京地点（44132）の予測値を取得します。CORSでブロックされる場合は「Failed to fetch」等のエラーになります。
+  </div>
+  <button id="btnApi">API通信テストを実行</button>
+  <div id="apiResult" class="result wait">未実行</div>
+</div>
+
+<div class="card">
+  <h2>3. クリップボード書き込みテスト</h2>
+  <div style="font-size:12px;color:#666;margin-bottom:10px;">
+    ボタンを押した直後にテキストをクリップボードにコピーします。コピー後、メモ帳等に貼り付けて確認してください。
+  </div>
+  <button id="btnClip">クリップボードテストを実行</button>
+  <div id="clipResult" class="result wait">未実行</div>
+</div>
+
+<div class="card">
+  <h2>結果の報告方法</h2>
+  <div style="font-size:13px;">
+    上記2つのテスト結果（成功/失敗、エラーメッセージ）と、「1. 実行環境情報」の内容をそのままコピーして報告してください。
+  </div>
+</div>
+
+<script>
+// ---- 1. 環境情報 ----
+function renderEnvInfo() {
+  const el = document.getElementById('envInfo');
+  const info = {
+    'URL(起点)': location.href,
+    'protocol': location.protocol,
+    'isSecureContext': window.isSecureContext,
+    'userAgent': navigator.userAgent,
+    'clipboard API有無': !!(navigator.clipboard && navigator.clipboard.writeText),
+  };
+  el.innerHTML = Object.entries(info).map(([k,v]) =>
+    `<div><span class="label">${k}:</span> ${v}</div>`
+  ).join('');
+}
+renderEnvInfo();
+
+// ---- 2. API通信テスト ----
+function pad(n) { return String(n).padStart(2, '0'); }
+function formatDate14(d) {
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+document.getElementById('btnApi').addEventListener('click', async () => {
+  const resultEl = document.getElementById('apiResult');
+  resultEl.className = 'result wait';
+  resultEl.textContent = '通信中...';
+
+  const now = new Date();
+  const to = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // 2日後
+  const from = formatDate14(now);
+  const toStr = formatDate14(to);
+
+  const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=44132&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${toStr}`;
+
+  try {
+    const res = await fetch(url);
+    const status = res.status;
+    let bodyText;
+    try {
+      const json = await res.json();
+      bodyText = JSON.stringify(json).slice(0, 500);
+    } catch (parseErr) {
+      bodyText = '(JSON解析失敗) ' + (await res.text()).slice(0, 300);
+    }
+    resultEl.className = 'result ok';
+    resultEl.textContent = `成功\nHTTPステータス: ${status}\nリクエストURL: ${url}\n\n応答(先頭500文字):\n${bodyText}`;
+  } catch (err) {
+    resultEl.className = 'result ng';
+    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}\nリクエストURL: ${url}\n\n※「Failed to fetch」はCORSブロックまたはネットワーク不通の可能性があります。`;
+  }
+});
+
+// ---- 3. クリップボードテスト ----
+document.getElementById('btnClip').addEventListener('click', async () => {
+  const resultEl = document.getElementById('clipResult');
+  const testText = `WBGT_Viewer_clipboard_test_${Date.now()}`;
+
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    resultEl.className = 'result ng';
+    resultEl.textContent = '失敗\nこのブラウザは navigator.clipboard.writeText に対応していません（isSecureContext=' + window.isSecureContext + '）。';
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(testText);
+    resultEl.className = 'result ok';
+    resultEl.textContent = `成功\nコピーした文字列: ${testText}\n\n他のアプリ（メモ帳等）に貼り付けて、上記文字列と一致するか確認してください。`;
+  } catch (err) {
+    resultEl.className = 'result ng';
+    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}`;
+  }
+});
+</script>
+
+</body>
+</html>
