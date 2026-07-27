@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WBGT Viewer 事前検証（Step 0）</title>
+<title>WBGT Viewer Step1 データ取得層 検証</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
@@ -14,159 +14,183 @@
     line-height: 1.6;
   }
   h1 { font-size: 18px; margin-bottom: 4px; }
-  .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
-  .card {
-    background: #fff;
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  .card h2 { font-size: 15px; margin: 0 0 10px 0; }
-  button {
+  .sub { color: #666; font-size: 13px; margin-bottom: 16px; }
+  button.main {
     background: #2563eb;
     color: #fff;
     border: none;
     border-radius: 8px;
-    padding: 12px 20px;
-    font-size: 15px;
+    padding: 14px 20px;
+    font-size: 16px;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 20px;
   }
-  button:active { background: #1d4ed8; }
-  .result {
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    white-space: pre-wrap;
-    word-break: break-all;
+  button.main:active { background: #1d4ed8; }
+  .station-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
-  .ok    { background: #dcfce7; border: 1px solid #22c55e; }
-  .ng    { background: #fee2e2; border: 1px solid #ef4444; }
-  .wait  { background: #f3f4f6; border: 1px solid #d1d5db; color: #888; }
-  .env   { font-size: 12px; color: #555; background: #eef2ff; border-radius: 8px; padding: 10px; }
-  .env div { margin-bottom: 4px; }
-  .label { font-weight: bold; }
+  .station-card h2 { font-size: 15px; margin: 0 0 6px 0; }
+  .meta { font-size: 11px; color: #666; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: center; }
+  th { background: #f0f4ff; }
+  .col-header { background: #dbeafe; font-weight: bold; }
+  .missing { color: #b91c1c; background: #fee2e2; }
+  .status-ok { color: #16a34a; font-weight: bold; }
+  .status-ng { color: #dc2626; font-weight: bold; }
+  .status-wait { color: #999; }
+  #globalStatus { font-size: 13px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 
-<h1>WBGT Viewer 事前検証ページ（Step 0）</h1>
-<div class="sub">API通信とクリップボード書き込みが、この端末・ブラウザで動作するか確認します。</div>
+<h1>WBGT Viewer Step1: データ取得層 検証</h1>
+<div class="sub">11地点それぞれの最新予測値（翌日7コマ・翌々日8コマ）を取得します。公式サイトの表示値と地点ごとに見比べてください。</div>
 
-<div class="card">
-  <h2>1. 実行環境情報</h2>
-  <div class="env" id="envInfo"></div>
-</div>
+<button class="main" id="btnFetchAll">全11地点のデータを取得</button>
+<div id="globalStatus" class="status-wait">未実行</div>
 
-<div class="card">
-  <h2>2. 環境省WBGT API 通信テスト</h2>
-  <div style="font-size:12px;color:#666;margin-bottom:10px;">
-    東京地点（44132）の予測値を取得します。CORSでブロックされる場合は「Failed to fetch」等のエラーになります。
-  </div>
-  <button id="btnApi">API通信テストを実行</button>
-  <div id="apiResult" class="result wait">未実行</div>
-</div>
-
-<div class="card">
-  <h2>3. クリップボード書き込みテスト</h2>
-  <div style="font-size:12px;color:#666;margin-bottom:10px;">
-    ボタンを押した直後にテキストをクリップボードにコピーします。コピー後、メモ帳等に貼り付けて確認してください。
-  </div>
-  <button id="btnClip">クリップボードテストを実行</button>
-  <div id="clipResult" class="result wait">未実行</div>
-</div>
-
-<div class="card">
-  <h2>結果の報告方法</h2>
-  <div style="font-size:13px;">
-    上記2つのテスト結果（成功/失敗、エラーメッセージ）と、「1. 実行環境情報」の内容をそのままコピーして報告してください。
-  </div>
-</div>
+<div id="results"></div>
 
 <script>
-// ---- 1. 環境情報 ----
-function renderEnvInfo() {
-  const el = document.getElementById('envInfo');
-  const info = {
-    'URL(起点)': location.href,
-    'protocol': location.protocol,
-    'isSecureContext': window.isSecureContext,
-    'userAgent': navigator.userAgent,
-    'clipboard API有無': !!(navigator.clipboard && navigator.clipboard.writeText),
-  };
-  el.innerHTML = Object.entries(info).map(([k,v]) =>
-    `<div><span class="label">${k}:</span> ${v}</div>`
-  ).join('');
-}
-renderEnvInfo();
+// 対象11地点（地点番号は情報提供地点マスタで確認済み）
+const STATIONS = [
+  { name: '群馬（前橋）', no: 42251 },
+  { name: '宇都宮',       no: 41277 },
+  { name: '水戸',         no: 40201 },
+  { name: '銚子',         no: 45148 },
+  { name: '熊谷',         no: 43056 },
+  { name: '東京',         no: 44132 },
+  { name: '横浜',         no: 46106 },
+  { name: '新潟（関山）', no: 54816 },
+  { name: '長野',         no: 48156 },
+  { name: '静岡（御殿場）', no: 50136 },
+  { name: '山梨（山中）', no: 49256 },
+];
 
-// ---- 2. API通信テスト ----
 function pad(n) { return String(n).padStart(2, '0'); }
 function formatDate14(d) {
   return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
+function formatDateSlash(d) {
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:00:00`;
+}
 
-document.getElementById('btnApi').addEventListener('click', async () => {
-  const resultEl = document.getElementById('apiResult');
-  resultEl.className = 'result wait';
-  resultEl.textContent = '通信中...';
-
+// 実行時点(端末のローカル時刻=JST前提)を基準に「翌日」「翌々日」の日付を算出
+function getTargetSlots() {
   const now = new Date();
-  // range_date_from/to は「予測データの発表時刻」で絞り込む仕様のため、
-  // 「今日0時〜現在時刻」を指定して直近の発表分を取得する。
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const dayAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+
+  const tomorrowHours = [6, 9, 12, 15, 18, 21, 24]; // 翌日7コマ
+  const dayAfterHours = [3, 6, 9, 12, 15, 18, 21, 24]; // 翌々日8コマ
+
+  const slots = [];
+  tomorrowHours.forEach(h => {
+    const d = new Date(tomorrow);
+    d.setHours(h === 24 ? 0 : h, 0, 0, 0);
+    if (h === 24) d.setDate(d.getDate() + 1); // 24時=翌日の0時として扱う
+    slots.push({ column: '翌日', hourLabel: h, key: formatDateSlash(d) });
+  });
+  dayAfterHours.forEach(h => {
+    const d = new Date(dayAfter);
+    d.setHours(h === 24 ? 0 : h, 0, 0, 0);
+    if (h === 24) d.setDate(d.getDate() + 1);
+    slots.push({ column: '翌々日', hourLabel: h, key: formatDateSlash(d) });
+  });
+  return { slots, now };
+}
+
+async function fetchStation(station) {
+  const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const from = formatDate14(todayStart);
-  const toStr = formatDate14(now);
+  const to = formatDate14(now);
+  const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=${station.no}&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${to}`;
 
-  const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=44132&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${toStr}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (!json || !Array.isArray(json.data) || json.data.length === 0) {
+    throw new Error('データ0件（該当地点・期間のデータなし）');
+  }
+  const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
+  const latestOnly = json.data.filter(d => d.reference_time === latestRef);
 
-  try {
-    const res = await fetch(url);
-    const status = res.status;
-    let bodyText;
+  const byTime = {};
+  latestOnly.forEach(d => { byTime[d.forecast_time] = d.forecast_val; });
+
+  return { url, latestRef, byTime };
+}
+
+function renderStationCard(station, slots, result, error) {
+  const card = document.createElement('div');
+  card.className = 'station-card';
+
+  let html = `<h2>${station.name}（地点番号: ${station.no}）</h2>`;
+
+  if (error) {
+    html += `<div class="meta status-ng">取得失敗: ${error}</div>`;
+    card.innerHTML = html;
+    return card;
+  }
+
+  html += `<div class="meta">最新発表時刻(reference_time): ${result.latestRef}</div>`;
+  html += `<table><tr><th>時刻</th><th class="col-header">翌日</th><th class="col-header">翌々日</th></tr>`;
+
+  // 時刻ラベルでグルーピング(06,09,12,15,18,21,24 / 03含む)
+  const hourOrder = [3, 6, 9, 12, 15, 18, 21, 24];
+  hourOrder.forEach(h => {
+    const tomorrowSlot = slots.find(s => s.column === '翌日' && s.hourLabel === h);
+    const dayAfterSlot = slots.find(s => s.column === '翌々日' && s.hourLabel === h);
+    const tVal = tomorrowSlot ? result.byTime[tomorrowSlot.key] : undefined;
+    const dVal = dayAfterSlot ? result.byTime[dayAfterSlot.key] : undefined;
+
+    const tCell = tomorrowSlot
+      ? (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : `<span class="missing">データなし</span>`)
+      : '';
+    const dCell = dayAfterSlot
+      ? (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : `<span class="missing">データなし</span>`)
+      : '';
+
+    html += `<tr><td>${h}</td><td>${tCell}</td><td>${dCell}</td></tr>`;
+  });
+
+  html += `</table>`;
+  card.innerHTML = html;
+  return card;
+}
+
+document.getElementById('btnFetchAll').addEventListener('click', async () => {
+  const statusEl = document.getElementById('globalStatus');
+  const resultsEl = document.getElementById('results');
+  resultsEl.innerHTML = '';
+  statusEl.className = 'status-wait';
+  statusEl.textContent = `取得中... (0/${STATIONS.length})`;
+
+  const { slots } = getTargetSlots();
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (let i = 0; i < STATIONS.length; i++) {
+    const station = STATIONS[i];
     try {
-      const json = await res.json();
-      if (json && Array.isArray(json.data) && json.data.length > 0) {
-        // 複数のreference_time(発表時刻)が混在するため、最新の発表分だけに絞り込む
-        const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
-        const latestOnly = json.data.filter(d => d.reference_time === latestRef);
-        const summary = latestOnly.map(d => `${d.forecast_time} → ${(parseFloat(d.forecast_val) / 10).toFixed(1)}`).join('\n');
-        bodyText = `最新発表時刻(reference_time): ${latestRef}\n該当件数: ${latestOnly.length}\n\n${summary}`;
-      } else {
-        bodyText = JSON.stringify(json).slice(0, 500);
-      }
-    } catch (parseErr) {
-      bodyText = '(JSON解析失敗) ' + (await res.text()).slice(0, 300);
+      const result = await fetchStation(station);
+      resultsEl.appendChild(renderStationCard(station, slots, result, null));
+      successCount++;
+    } catch (err) {
+      resultsEl.appendChild(renderStationCard(station, slots, null, err.message));
+      errorCount++;
     }
-    resultEl.className = 'result ok';
-    resultEl.textContent = `成功\nHTTPステータス: ${status}\nリクエストURL: ${url}\n\n${bodyText}`;
-  } catch (err) {
-    resultEl.className = 'result ng';
-    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}\nリクエストURL: ${url}\n\n※「Failed to fetch」はCORSブロックまたはネットワーク不通の可能性があります。`;
-  }
-});
-
-// ---- 3. クリップボードテスト ----
-document.getElementById('btnClip').addEventListener('click', async () => {
-  const resultEl = document.getElementById('clipResult');
-  const testText = `WBGT_Viewer_clipboard_test_${Date.now()}`;
-
-  if (!navigator.clipboard || !navigator.clipboard.writeText) {
-    resultEl.className = 'result ng';
-    resultEl.textContent = '失敗\nこのブラウザは navigator.clipboard.writeText に対応していません（isSecureContext=' + window.isSecureContext + '）。';
-    return;
+    statusEl.textContent = `取得中... (${i + 1}/${STATIONS.length})`;
   }
 
-  try {
-    await navigator.clipboard.writeText(testText);
-    resultEl.className = 'result ok';
-    resultEl.textContent = `成功\nコピーした文字列: ${testText}\n\n他のアプリ（メモ帳等）に貼り付けて、上記文字列と一致するか確認してください。`;
-  } catch (err) {
-    resultEl.className = 'result ng';
-    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}`;
-  }
+  statusEl.className = errorCount === 0 ? 'status-ok' : 'status-ng';
+  statusEl.textContent = `完了: 成功 ${successCount}件 / 失敗 ${errorCount}件`;
 });
 </script>
 
