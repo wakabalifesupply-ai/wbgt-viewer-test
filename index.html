@@ -128,12 +128,20 @@ document.getElementById('btnApi').addEventListener('click', async () => {
     let bodyText;
     try {
       const json = await res.json();
-      bodyText = JSON.stringify(json).slice(0, 500);
+      if (json && Array.isArray(json.data) && json.data.length > 0) {
+        // 複数のreference_time(発表時刻)が混在するため、最新の発表分だけに絞り込む
+        const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
+        const latestOnly = json.data.filter(d => d.reference_time === latestRef);
+        const summary = latestOnly.map(d => `${d.forecast_time} → ${(parseFloat(d.forecast_val) / 10).toFixed(1)}`).join('\n');
+        bodyText = `最新発表時刻(reference_time): ${latestRef}\n該当件数: ${latestOnly.length}\n\n${summary}`;
+      } else {
+        bodyText = JSON.stringify(json).slice(0, 500);
+      }
     } catch (parseErr) {
       bodyText = '(JSON解析失敗) ' + (await res.text()).slice(0, 300);
     }
     resultEl.className = 'result ok';
-    resultEl.textContent = `成功\nHTTPステータス: ${status}\nリクエストURL: ${url}\n\n応答(先頭500文字):\n${bodyText}`;
+    resultEl.textContent = `成功\nHTTPステータス: ${status}\nリクエストURL: ${url}\n\n${bodyText}`;
   } catch (err) {
     resultEl.className = 'result ng';
     resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}\nリクエストURL: ${url}\n\n※「Failed to fetch」はCORSブロックまたはネットワーク不通の可能性があります。`;
