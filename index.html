@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PowerPoint出力 事前検証</title>
+<title>PptxGenJS 検証</title>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
@@ -23,106 +24,95 @@
   .ok   { background: #dcfce7; border: 1px solid #22c55e; }
   .ng   { background: #fee2e2; border: 1px solid #ef4444; }
   .wait { background: #f3f4f6; border: 1px solid #d1d5db; color: #888; }
-
-  table { border-collapse: collapse; margin-bottom: 16px; }
-  th, td { border: 1px solid #999; padding: 6px 12px; text-align: center; font-size: 14px; }
-  th { background: #eee; }
-
   .step { font-size: 13px; color: #444; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
-<h1>PowerPoint出力 事前検証（Clipboard HTML方式）</h1>
-<div class="sub">色付きの表をクリップボードにコピーし、PowerPointへ貼り付けて色が反映されるか確認します。</div>
+<h1>PptxGenJS 直接.pptx生成 検証</h1>
+<div class="sub">色付きの表を含む本物の.pptxファイルを生成し、ダウンロードします。</div>
 
-<button id="btnCopy">色付き表をコピー（PowerPoint貼り付け用）</button>
+<button id="btnGenerate">.pptxファイルを生成</button>
 <div id="result" class="result wait">未実行</div>
-
-<div class="step">↓ 画面上のプレビュー（コピーされる内容と同じ見た目）</div>
-<div id="preview"></div>
 
 <div class="step">
   【確認手順】<br>
-  1. 上のボタンでコピー<br>
-  2. PowerPointを開き、スライドに「貼り付け」（長押し→貼り付け、またはCtrl+V）<br>
-  3. 表の背景色・文字色がそのまま反映されているか確認<br>
-  4. 反映されていれば「色が出た」、崩れる・白黒になる等あれば具体的な状態を教えてください
+  1. 上のボタンで.pptxファイルをダウンロード<br>
+  2. ダウンロードしたファイルをPowerPointアプリで開く<br>
+  3. エラーなく開けるか（「修復が必要」等のメッセージが出ないか）<br>
+  4. 表の背景色（赤・オレンジ・黄・緑・青）が正しく表示されているか確認
 </div>
 
 <script>
 // 色分けルール（依頼書の基準に準拠）
 function colorFor(val) {
-  if (val >= 31) return { bg: '#dc2626', fg: '#ffffff' }; // 赤
-  if (val >= 28) return { bg: '#f97316', fg: '#ffffff' }; // オレンジ
-  if (val >= 25) return { bg: '#fde047', fg: '#1a1a1a' }; // 黄
-  if (val >= 21) return { bg: '#22c55e', fg: '#ffffff' }; // 緑
-  return { bg: '#3b82f6', fg: '#ffffff' };                 // 青（20以下）
+  if (val >= 31) return { bg: 'DC2626', fg: 'FFFFFF' }; // 赤
+  if (val >= 28) return { bg: 'F97316', fg: 'FFFFFF' }; // オレンジ
+  if (val >= 25) return { bg: 'FDE047', fg: '1A1A1A' }; // 黄
+  if (val >= 21) return { bg: '22C55E', fg: 'FFFFFF' }; // 緑
+  return { bg: '3B82F6', fg: 'FFFFFF' };                 // 青（20以下）
 }
 
-// 検証用のサンプルデータ（実データではなく、5段階の色を網羅する値）
+const SAMPLE_LABELS = ['地点A', '地点B', '地点C', '地点D', '地点E'];
 const SAMPLE = [
   { time: 9,  vals: [18, 22, 26, 29, 32] },
   { time: 12, vals: [19, 23, 27, 30, 33] },
 ];
-const SAMPLE_LABELS = ['地点A', '地点B', '地点C', '地点D', '地点E'];
 
-function buildHtmlTable() {
-  let html = '<table style="border-collapse:collapse;font-family:sans-serif;">';
-  html += '<tr><th style="border:1px solid #999;padding:6px 12px;background:#eee;">時刻</th>';
-  SAMPLE_LABELS.forEach(name => {
-    html += `<th style="border:1px solid #999;padding:6px 12px;background:#eee;">${name}</th>`;
-  });
-  html += '</tr>';
-
-  SAMPLE.forEach(row => {
-    html += `<tr><td style="border:1px solid #999;padding:6px 12px;text-align:center;">${row.time}</td>`;
-    row.vals.forEach(v => {
-      const c = colorFor(v);
-      html += `<td style="border:1px solid #999;padding:6px 12px;text-align:center;background-color:${c.bg};color:${c.fg};">${v}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</table>';
-  return html;
-}
-
-function buildPlainText() {
-  let lines = ['時刻\t' + SAMPLE_LABELS.join('\t')];
-  SAMPLE.forEach(row => {
-    lines.push(row.time + '\t' + row.vals.join('\t'));
-  });
-  return lines.join('\n');
-}
-
-// 画面プレビュー
-document.getElementById('preview').innerHTML = buildHtmlTable();
-
-document.getElementById('btnCopy').addEventListener('click', async () => {
+document.getElementById('btnGenerate').addEventListener('click', () => {
   const resultEl = document.getElementById('result');
   resultEl.className = 'result wait';
-  resultEl.textContent = '処理中...';
-
-  const htmlStr = buildHtmlTable();
-  const plainStr = buildPlainText();
-
-  if (!navigator.clipboard || !window.ClipboardItem) {
-    resultEl.className = 'result ng';
-    resultEl.textContent = '失敗\nこのブラウザは ClipboardItem（HTML形式のコピー）に対応していません。';
-    return;
-  }
+  resultEl.textContent = '生成中...';
 
   try {
-    const item = new ClipboardItem({
-      'text/html': new Blob([htmlStr], { type: 'text/html' }),
-      'text/plain': new Blob([plainStr], { type: 'text/plain' }),
+    if (typeof PptxGenJS === 'undefined') {
+      throw new Error('PptxGenJSライブラリの読み込みに失敗しました（CDN読み込み失敗の可能性）');
+    }
+
+    const pptx = new PptxGenJS();
+    const slide = pptx.addSlide();
+
+    const headerRow = [
+      { text: '時刻', options: { bold: true, fill: { color: 'EEEEEE' }, align: 'center' } },
+      ...SAMPLE_LABELS.map(name => ({
+        text: name,
+        options: { bold: true, fill: { color: 'EEEEEE' }, align: 'center' }
+      }))
+    ];
+
+    const dataRows = SAMPLE.map(row => {
+      const cells = [{ text: String(row.time), options: { align: 'center' } }];
+      row.vals.forEach(v => {
+        const c = colorFor(v);
+        cells.push({
+          text: String(v),
+          options: { align: 'center', fill: { color: c.bg }, color: c.fg }
+        });
+      });
+      return cells;
     });
-    await navigator.clipboard.write([item]);
-    resultEl.className = 'result ok';
-    resultEl.textContent = '成功\nHTML形式でクリップボードにコピーしました。\nPowerPoint等に貼り付けて、色が反映されるか確認してください。';
+
+    const rows = [headerRow, ...dataRows];
+
+    slide.addTable(rows, {
+      x: 0.5, y: 0.5, w: 8, h: 2,
+      fontSize: 14,
+      border: { type: 'solid', color: '999999', pt: 1 },
+    });
+
+    pptx.writeFile({ fileName: 'wbgt_pptxgenjs_test.pptx' })
+      .then(() => {
+        resultEl.className = 'result ok';
+        resultEl.textContent = '成功\n.pptxファイルを生成・ダウンロードしました。\nPowerPointで開いて、色が反映されているか確認してください。';
+      })
+      .catch(err => {
+        resultEl.className = 'result ng';
+        resultEl.textContent = `失敗（writeFile）\n${err.name}: ${err.message}`;
+      });
+
   } catch (err) {
     resultEl.className = 'result ng';
-    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}`;
+    resultEl.textContent = `失敗\n${err.name}: ${err.message}`;
   }
 });
 </script>
