@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>WBGT Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -35,7 +36,7 @@
     color: #fff;
   }
   #btnRefresh { background: #2563eb; }
-  #btnCopy { background: #059669; }
+  #btnExport { background: #059669; }
   .toolbar button:active { opacity: 0.85; }
 
   #statusBox {
@@ -92,7 +93,7 @@
   .val-missing { color: #b91c1c; font-size: 12px; }
   .val-error { color: #b91c1c; }
 
-  #copyToast {
+  #appToast {
     position: fixed;
     bottom: 24px; left: 50%;
     transform: translateX(-50%);
@@ -101,7 +102,7 @@
     font-size: 13px; opacity: 0; transition: opacity 0.2s;
     pointer-events: none;
   }
-  #copyToast.show { opacity: 0.95; }
+  #appToast.show { opacity: 0.95; }
 </style>
 </head>
 <body>
@@ -113,7 +114,7 @@
 
 <div class="toolbar">
   <button id="btnRefresh">更新</button>
-  <button id="btnCopy">コピー</button>
+  <button id="btnExport">エクセル出力</button>
 </div>
 
 <div id="statusBox" class="status-wait">読み込み中...</div>
@@ -127,7 +128,7 @@
   </table>
 </div>
 
-<div id="copyToast">コピーしました</div>
+<div id="appToast"></div>
 
 <script>
 // =========================================================
@@ -138,7 +139,7 @@ const STATIONS = [
   { name: '宇都宮',       no: 41277 },
   { name: '水戸',         no: 40201 },
   { name: '銚子',         no: 45148 },
-  { name: '熊谷',         no: 43056 },
+  { name: 'さいたま',     no: 43241 },
   { name: '東京',         no: 44132 },
   { name: '横浜',         no: 46106 },
   { name: '新潟（関山）', no: 54816 },
@@ -297,20 +298,20 @@ async function loadAndRenderAll() {
 }
 
 function showToast(msg) {
-  const toast = document.getElementById('copyToast');
+  const toast = document.getElementById('appToast');
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 1500);
 }
 
-async function copyAllData() {
+function exportExcel() {
   if (!latestResults || !latestSlots) {
-    showToast('コピーできるデータがありません');
+    showToast('出力できるデータがありません');
     return;
   }
 
-  const lines = [];
-  lines.push(['区分', '時刻', ...STATIONS.map(s => s.name)].join('\t'));
+  const rows = [];
+  rows.push(['区分', '時刻', ...STATIONS.map(s => s.name)]);
 
   TOMORROW_HOURS.forEach(h => {
     const row = ['翌日', h];
@@ -320,7 +321,7 @@ async function copyAllData() {
       const val = result && key ? result.byTime[key] : undefined;
       row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
     });
-    lines.push(row.join('\t'));
+    rows.push(row);
   });
 
   DAYAFTER_HOURS.forEach(h => {
@@ -331,16 +332,20 @@ async function copyAllData() {
       const val = result && key ? result.byTime[key] : undefined;
       row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
     });
-    lines.push(row.join('\t'));
+    rows.push(row);
   });
 
-  const tsv = lines.join('\n');
-
   try {
-    await navigator.clipboard.writeText(tsv);
-    showToast('コピーしました');
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'WBGT');
+
+    const now = new Date();
+    const fname = `wbgt_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    showToast('エクセルファイルを出力しました');
   } catch (err) {
-    showToast('コピーに失敗しました');
+    showToast('エクセル出力に失敗しました');
   }
 }
 
@@ -348,8 +353,8 @@ async function copyAllData() {
 document.getElementById('btnRefresh').addEventListener('click', () => {
   loadAndRenderAll();
 });
-document.getElementById('btnCopy').addEventListener('click', () => {
-  copyAllData();
+document.getElementById('btnExport').addEventListener('click', () => {
+  exportExcel();
 });
 
 // ---- 初期化 ----
