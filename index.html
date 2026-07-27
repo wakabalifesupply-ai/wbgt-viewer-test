@@ -2,378 +2,129 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>WBGT Viewer</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PowerPoint出力 事前検証</title>
 <style>
-  * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-    margin: 0;
-    padding: 0;
-    background: #f2f4f7;
-    color: #1a1a1a;
+    margin: 0; padding: 16px;
+    background: #f5f5f5; color: #222; line-height: 1.6;
   }
-  header {
-    background: #1e3a5f;
-    color: #fff;
-    padding: 14px 16px 12px;
+  h1 { font-size: 17px; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 16px; }
+  button {
+    background: #2563eb; color: #fff; border: none; border-radius: 8px;
+    padding: 14px 20px; font-size: 15px; width: 100%; margin-bottom: 16px;
   }
-  header h1 { font-size: 17px; margin: 0; }
-  header .updated { font-size: 11px; color: #b9c9dd; margin-top: 2px; }
+  .result {
+    padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .ok   { background: #dcfce7; border: 1px solid #22c55e; }
+  .ng   { background: #fee2e2; border: 1px solid #ef4444; }
+  .wait { background: #f3f4f6; border: 1px solid #d1d5db; color: #888; }
 
-  .toolbar {
-    display: flex;
-    gap: 8px;
-    padding: 12px 16px;
-  }
-  .toolbar button {
-    flex: 1;
-    padding: 12px 4px;
-    font-size: 14px;
-    border-radius: 8px;
-    border: none;
-    color: #fff;
-  }
-  #btnRefresh { background: #2563eb; }
-  #btnExport { background: #059669; }
-  .toolbar button:active { opacity: 0.85; }
+  table { border-collapse: collapse; margin-bottom: 16px; }
+  th, td { border: 1px solid #999; padding: 6px 12px; text-align: center; font-size: 14px; }
+  th { background: #eee; }
 
-  #statusBox {
-    margin: 0 16px 10px;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-  }
-  .status-ok  { background: #ecfdf5; color: #065f46; }
-  .status-ng  { background: #fef2f2; color: #991b1b; }
-  .status-wait{ background: #f3f4f6; color: #666; }
-
-  .table-wrap {
-    overflow-x: auto;
-    margin: 0 16px 16px;
-    background: #fff;
-    border-radius: 8px;
-    -webkit-overflow-scrolling: touch;
-  }
-  table {
-    border-collapse: collapse;
-    white-space: nowrap;
-  }
-  th, td {
-    border: 1px solid #e2e6ea;
-    padding: 8px 10px;
-    text-align: center;
-    font-size: 14px;
-  }
-  thead th {
-    background: #eef2f7;
-    font-size: 13px;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-  }
-  th.time-col, td.time-col {
-    position: sticky;
-    left: 0;
-    background: #dbe4ee;
-    z-index: 1;
-    font-weight: bold;
-    min-width: 54px;
-  }
-  th.time-col2, td.time-col2 {
-    position: sticky;
-    left: 54px;
-    background: #eef2f7;
-    z-index: 1;
-    font-weight: bold;
-    min-width: 48px;
-  }
-  thead th.time-col, thead th.time-col2 { z-index: 3; }
-  .val-missing { color: #b91c1c; font-size: 12px; }
-  .val-error { color: #b91c1c; }
-
-  #appToast {
-    position: fixed;
-    bottom: 24px; left: 50%;
-    transform: translateX(-50%);
-    background: #1a1a1a; color: #fff;
-    padding: 10px 18px; border-radius: 20px;
-    font-size: 13px; opacity: 0; transition: opacity 0.2s;
-    pointer-events: none;
-  }
-  #appToast.show { opacity: 0.95; }
+  .step { font-size: 13px; color: #444; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>WBGT Viewer</h1>
-  <div class="updated" id="headerSub">全11地点 一覧</div>
-</header>
+<h1>PowerPoint出力 事前検証（Clipboard HTML方式）</h1>
+<div class="sub">色付きの表をクリップボードにコピーし、PowerPointへ貼り付けて色が反映されるか確認します。</div>
 
-<div class="toolbar">
-  <button id="btnRefresh">更新</button>
-  <button id="btnExport">エクセル出力</button>
+<button id="btnCopy">色付き表をコピー（PowerPoint貼り付け用）</button>
+<div id="result" class="result wait">未実行</div>
+
+<div class="step">↓ 画面上のプレビュー（コピーされる内容と同じ見た目）</div>
+<div id="preview"></div>
+
+<div class="step">
+  【確認手順】<br>
+  1. 上のボタンでコピー<br>
+  2. PowerPointを開き、スライドに「貼り付け」（長押し→貼り付け、またはCtrl+V）<br>
+  3. 表の背景色・文字色がそのまま反映されているか確認<br>
+  4. 反映されていれば「色が出た」、崩れる・白黒になる等あれば具体的な状態を教えてください
 </div>
-
-<div id="statusBox" class="status-wait">読み込み中...</div>
-
-<div class="table-wrap">
-  <table id="dataTable">
-    <thead>
-      <tr id="headerRow"><th class="time-col">時刻</th></tr>
-    </thead>
-    <tbody id="dataBody"></tbody>
-  </table>
-</div>
-
-<div id="appToast"></div>
 
 <script>
-// =========================================================
-// 対象11地点（情報提供地点マスタで確認済みの地点番号）
-// =========================================================
-const STATIONS = [
-  { name: '群馬（前橋）', no: 42251 },
-  { name: '宇都宮',       no: 41277 },
-  { name: '水戸',         no: 40201 },
-  { name: '銚子',         no: 45148 },
-  { name: 'さいたま',     no: 43241 },
-  { name: '東京',         no: 44132 },
-  { name: '横浜',         no: 46106 },
-  { name: '新潟（関山）', no: 54816 },
-  { name: '長野',         no: 48156 },
-  { name: '静岡（御殿場）', no: 50136 },
-  { name: '山梨（山中）', no: 49256 },
+// 色分けルール（依頼書の基準に準拠）
+function colorFor(val) {
+  if (val >= 31) return { bg: '#dc2626', fg: '#ffffff' }; // 赤
+  if (val >= 28) return { bg: '#f97316', fg: '#ffffff' }; // オレンジ
+  if (val >= 25) return { bg: '#fde047', fg: '#1a1a1a' }; // 黄
+  if (val >= 21) return { bg: '#22c55e', fg: '#ffffff' }; // 緑
+  return { bg: '#3b82f6', fg: '#ffffff' };                 // 青（20以下）
+}
+
+// 検証用のサンプルデータ（実データではなく、5段階の色を網羅する値）
+const SAMPLE = [
+  { time: 9,  vals: [18, 22, 26, 29, 32] },
+  { time: 12, vals: [19, 23, 27, 30, 33] },
 ];
+const SAMPLE_LABELS = ['地点A', '地点B', '地点C', '地点D', '地点E'];
 
-const TOMORROW_HOURS = [6, 9, 12, 15, 18, 21, 24];        // 翌日7コマ
-const DAYAFTER_HOURS = [3, 6, 9, 12, 15, 18, 21, 24];     // 翌々日8コマ
-
-let latestResults = null; // { stationNo: { latestRef, byTime } | null(失敗) }
-let latestSlots = null;
-
-// ---- ユーティリティ ----
-function pad(n) { return String(n).padStart(2, '0'); }
-function formatDate14(d) {
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-function formatDateSlash(d) {
-  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:00:00`;
-}
-
-// 実行時点(端末のローカル時刻=JST前提)を基準に「翌日」「翌々日」の対象時刻キーを算出
-function getTargetSlots() {
-  const now = new Date();
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const dayAfter  = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
-
-  const slots = { tomorrow: {}, dayAfter: {} };
-
-  TOMORROW_HOURS.forEach(h => {
-    const d = new Date(tomorrow);
-    d.setHours(h === 24 ? 0 : h, 0, 0, 0);
-    if (h === 24) d.setDate(d.getDate() + 1); // 24時 = 翌々日0時として扱う
-    slots.tomorrow[h] = formatDateSlash(d);
+function buildHtmlTable() {
+  let html = '<table style="border-collapse:collapse;font-family:sans-serif;">';
+  html += '<tr><th style="border:1px solid #999;padding:6px 12px;background:#eee;">時刻</th>';
+  SAMPLE_LABELS.forEach(name => {
+    html += `<th style="border:1px solid #999;padding:6px 12px;background:#eee;">${name}</th>`;
   });
-  DAYAFTER_HOURS.forEach(h => {
-    const d = new Date(dayAfter);
-    d.setHours(h === 24 ? 0 : h, 0, 0, 0);
-    if (h === 24) d.setDate(d.getDate() + 1);
-    slots.dayAfter[h] = formatDateSlash(d);
-  });
-  return slots;
-}
+  html += '</tr>';
 
-// ---- API呼び出し ----
-async function fetchStationData(station) {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const from = formatDate14(todayStart);
-  const to = formatDate14(now);
-  const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=${station.no}&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${to}`;
-
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (!json || json.status !== 'success' || !Array.isArray(json.data) || json.data.length === 0) {
-    throw new Error('データ0件');
-  }
-  const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
-  const latestOnly = json.data.filter(d => d.reference_time === latestRef);
-  const byTime = {};
-  latestOnly.forEach(d => { byTime[d.forecast_time] = d.forecast_val; });
-  return { latestRef, byTime };
-}
-
-// ---- 画面描画 ----
-function renderHeader() {
-  const headerRow = document.getElementById('headerRow');
-  headerRow.innerHTML = '<th class="time-col">区分</th><th class="time-col2">時刻</th>';
-  STATIONS.forEach(station => {
-    const th = document.createElement('th');
-    th.textContent = station.name;
-    headerRow.appendChild(th);
-  });
-}
-
-function cellValue(result, key) {
-  if (!result) return '<span class="val-error">—</span>';
-  const val = key ? result.byTime[key] : undefined;
-  if (!key) return '';
-  return val !== undefined ? Math.round(parseFloat(val) / 10) : '<span class="val-missing">なし</span>';
-}
-
-function renderTable() {
-  const tbody = document.getElementById('dataBody');
-  tbody.innerHTML = '';
-
-  // --- 翌日ブロック（A列に「翌日」をrowspanでまとめて表示） ---
-  TOMORROW_HOURS.forEach((h, idx) => {
-    const tr = document.createElement('tr');
-    let html = '';
-    if (idx === 0) {
-      html += `<td class="time-col" rowspan="${TOMORROW_HOURS.length}">翌日</td>`;
-    }
-    html += `<td class="time-col2">${h}</td>`;
-    STATIONS.forEach(station => {
-      const result = latestResults[station.no];
-      const key = latestSlots.tomorrow[h];
-      html += `<td>${cellValue(result, key)}</td>`;
+  SAMPLE.forEach(row => {
+    html += `<tr><td style="border:1px solid #999;padding:6px 12px;text-align:center;">${row.time}</td>`;
+    row.vals.forEach(v => {
+      const c = colorFor(v);
+      html += `<td style="border:1px solid #999;padding:6px 12px;text-align:center;background-color:${c.bg};color:${c.fg};">${v}</td>`;
     });
-    tr.innerHTML = html;
-    tbody.appendChild(tr);
+    html += '</tr>';
   });
+  html += '</table>';
+  return html;
+}
 
-  // --- 翌々日ブロック（A列に「翌々日」をrowspanでまとめて表示） ---
-  DAYAFTER_HOURS.forEach((h, idx) => {
-    const tr = document.createElement('tr');
-    let html = '';
-    if (idx === 0) {
-      html += `<td class="time-col" rowspan="${DAYAFTER_HOURS.length}">翌々日</td>`;
-    }
-    html += `<td class="time-col2">${h}</td>`;
-    STATIONS.forEach(station => {
-      const result = latestResults[station.no];
-      const key = latestSlots.dayAfter[h];
-      html += `<td>${cellValue(result, key)}</td>`;
-    });
-    tr.innerHTML = html;
-    tbody.appendChild(tr);
+function buildPlainText() {
+  let lines = ['時刻\t' + SAMPLE_LABELS.join('\t')];
+  SAMPLE.forEach(row => {
+    lines.push(row.time + '\t' + row.vals.join('\t'));
   });
+  return lines.join('\n');
 }
 
-async function loadAndRenderAll() {
-  const statusBox = document.getElementById('statusBox');
-  statusBox.className = 'status-wait';
-  statusBox.textContent = '読み込み中... (0/' + STATIONS.length + ')';
+// 画面プレビュー
+document.getElementById('preview').innerHTML = buildHtmlTable();
 
-  latestSlots = getTargetSlots();
-  latestResults = {};
+document.getElementById('btnCopy').addEventListener('click', async () => {
+  const resultEl = document.getElementById('result');
+  resultEl.className = 'result wait';
+  resultEl.textContent = '処理中...';
 
-  let successCount = 0;
-  let errorStations = [];
+  const htmlStr = buildHtmlTable();
+  const plainStr = buildPlainText();
 
-  for (let i = 0; i < STATIONS.length; i++) {
-    const station = STATIONS[i];
-    try {
-      latestResults[station.no] = await fetchStationData(station);
-      successCount++;
-    } catch (err) {
-      latestResults[station.no] = null;
-      errorStations.push(station.name);
-    }
-    statusBox.textContent = `読み込み中... (${i + 1}/${STATIONS.length})`;
-    renderTable(); // 逐次描画（体感速度向上）
-  }
-
-  if (errorStations.length === 0) {
-    statusBox.className = 'status-ok';
-    statusBox.textContent = `取得完了（全${STATIONS.length}地点）`;
-  } else {
-    statusBox.className = 'status-ng';
-    statusBox.textContent = `一部取得失敗: ${errorStations.join('、')}`;
-  }
-}
-
-function showToast(msg) {
-  const toast = document.getElementById('appToast');
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 1500);
-}
-
-function exportExcel() {
-  if (!latestResults || !latestSlots) {
-    showToast('出力できるデータがありません');
+  if (!navigator.clipboard || !window.ClipboardItem) {
+    resultEl.className = 'result ng';
+    resultEl.textContent = '失敗\nこのブラウザは ClipboardItem（HTML形式のコピー）に対応していません。';
     return;
   }
 
-  const rows = [];
-  rows.push(['区分', '時刻', ...STATIONS.map(s => s.name)]);
-
-  // 翌日ブロック：1行目だけ「翌日」、以降は空文字（あとでセル結合する）
-  TOMORROW_HOURS.forEach((h, idx) => {
-    const row = [idx === 0 ? '翌日' : '', h];
-    STATIONS.forEach(station => {
-      const result = latestResults[station.no];
-      const key = latestSlots.tomorrow[h];
-      const val = result && key ? result.byTime[key] : undefined;
-      row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
-    });
-    rows.push(row);
-  });
-
-  // 翌々日ブロック：1行目だけ「翌々日」、以降は空文字
-  DAYAFTER_HOURS.forEach((h, idx) => {
-    const row = [idx === 0 ? '翌々日' : '', h];
-    STATIONS.forEach(station => {
-      const result = latestResults[station.no];
-      const key = latestSlots.dayAfter[h];
-      const val = result && key ? result.byTime[key] : undefined;
-      row.push(val !== undefined ? Math.round(parseFloat(val) / 10) : '');
-    });
-    rows.push(row);
-  });
-
   try {
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-
-    // A列のセル結合：ヘッダー行の次(1行目)から翌日ブロック分、その後に翌々日ブロック分
-    const tomorrowStartRow = 1; // 0始まり。0行目はヘッダー
-    const tomorrowEndRow = tomorrowStartRow + TOMORROW_HOURS.length - 1;
-    const dayAfterStartRow = tomorrowEndRow + 1;
-    const dayAfterEndRow = dayAfterStartRow + DAYAFTER_HOURS.length - 1;
-
-    ws['!merges'] = [
-      { s: { r: tomorrowStartRow, c: 0 }, e: { r: tomorrowEndRow, c: 0 } },
-      { s: { r: dayAfterStartRow, c: 0 }, e: { r: dayAfterEndRow, c: 0 } },
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'WBGT');
-
-    const now = new Date();
-    const fname = `wbgt_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
-    XLSX.writeFile(wb, fname);
-    showToast('エクセルファイルを出力しました');
+    const item = new ClipboardItem({
+      'text/html': new Blob([htmlStr], { type: 'text/html' }),
+      'text/plain': new Blob([plainStr], { type: 'text/plain' }),
+    });
+    await navigator.clipboard.write([item]);
+    resultEl.className = 'result ok';
+    resultEl.textContent = '成功\nHTML形式でクリップボードにコピーしました。\nPowerPoint等に貼り付けて、色が反映されるか確認してください。';
   } catch (err) {
-    showToast('エクセル出力に失敗しました');
+    resultEl.className = 'result ng';
+    resultEl.textContent = `失敗\nエラー名: ${err.name}\nエラーメッセージ: ${err.message}`;
   }
-}
-
-// ---- イベント登録 ----
-document.getElementById('btnRefresh').addEventListener('click', () => {
-  loadAndRenderAll();
 });
-document.getElementById('btnExport').addEventListener('click', () => {
-  exportExcel();
-});
-
-// ---- 初期化 ----
-renderHeader();
-loadAndRenderAll();
 </script>
 
 </body>
