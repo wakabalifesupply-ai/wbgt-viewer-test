@@ -2,62 +2,145 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WBGT Viewer Step1 データ取得層 検証</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>WBGT Viewer</title>
 <style>
+  * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
     margin: 0;
-    padding: 16px;
-    background: #f5f5f5;
-    color: #222;
-    line-height: 1.6;
+    padding: 0;
+    background: #f2f4f7;
+    color: #1a1a1a;
   }
-  h1 { font-size: 18px; margin-bottom: 4px; }
-  .sub { color: #666; font-size: 13px; margin-bottom: 16px; }
-  button.main {
-    background: #2563eb;
+  header {
+    background: #1e3a5f;
     color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 14px 20px;
-    font-size: 16px;
-    width: 100%;
-    margin-bottom: 20px;
+    padding: 16px 16px 14px;
   }
-  button.main:active { background: #1d4ed8; }
-  .station-card {
+  header h1 { font-size: 17px; margin: 0; }
+  header .updated { font-size: 11px; color: #b9c9dd; margin-top: 2px; }
+  main { padding: 16px; }
+
+  /* ---- 地点選択画面 ---- */
+  #screenList .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  #screenList button.station-btn {
     background: #fff;
+    border: 1px solid #d8dee6;
     border-radius: 10px;
-    padding: 14px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 16px 8px;
+    font-size: 15px;
+    color: #1a1a1a;
+    text-align: center;
   }
-  .station-card h2 { font-size: 15px; margin: 0 0 6px 0; }
-  .meta { font-size: 11px; color: #666; margin-bottom: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: center; }
-  th { background: #f0f4ff; }
-  .col-header { background: #dbeafe; font-weight: bold; }
-  .missing { color: #b91c1c; background: #fee2e2; }
-  .status-ok { color: #16a34a; font-weight: bold; }
-  .status-ng { color: #dc2626; font-weight: bold; }
-  .status-wait { color: #999; }
-  #globalStatus { font-size: 13px; margin-bottom: 12px; }
+  #screenList button.station-btn:active { background: #eef2f7; }
+
+  /* ---- 詳細画面 ---- */
+  #screenDetail { display: none; }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .toolbar button {
+    flex: 1;
+    padding: 12px 4px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: none;
+    color: #fff;
+  }
+  #btnBack { background: #6b7280; }
+  #btnRefresh { background: #2563eb; }
+  #btnCopy { background: #059669; }
+  .toolbar button:active { opacity: 0.85; }
+
+  #stationTitle { font-size: 18px; font-weight: bold; margin: 4px 0 2px; }
+  #refInfo { font-size: 12px; color: #667; margin-bottom: 10px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    border: 1px solid #e2e6ea;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 15px;
+  }
+  th { background: #eef2f7; font-size: 13px; }
+  .val-missing { color: #b91c1c; font-size: 12px; }
+  .val-empty { color: #ccc; }
+
+  #statusBox {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .status-ok  { background: #ecfdf5; color: #065f46; }
+  .status-ng  { background: #fef2f2; color: #991b1b; }
+  .status-wait{ background: #f3f4f6; color: #666; }
+
+  #copyToast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a; color: #fff;
+    padding: 10px 18px; border-radius: 20px;
+    font-size: 13px; opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  #copyToast.show { opacity: 0.95; }
 </style>
 </head>
 <body>
 
-<h1>WBGT Viewer Step1: データ取得層 検証</h1>
-<div class="sub">11地点それぞれの最新予測値（翌日7コマ・翌々日8コマ）を取得します。公式サイトの表示値と地点ごとに見比べてください。</div>
+<header>
+  <h1>WBGT Viewer</h1>
+  <div class="updated" id="headerSub">地点を選択してください</div>
+</header>
 
-<button class="main" id="btnFetchAll">全11地点のデータを取得</button>
-<div id="globalStatus" class="status-wait">未実行</div>
+<main>
 
-<div id="results"></div>
+  <!-- 地点選択画面 -->
+  <div id="screenList">
+    <div class="grid" id="stationGrid"></div>
+  </div>
+
+  <!-- 詳細画面 -->
+  <div id="screenDetail">
+    <div class="toolbar">
+      <button id="btnBack">戻る</button>
+      <button id="btnRefresh">更新</button>
+      <button id="btnCopy">コピー</button>
+    </div>
+    <div id="stationTitle"></div>
+    <div id="refInfo"></div>
+    <table id="dataTable">
+      <thead>
+        <tr><th>時刻</th><th>翌日</th><th>翌々日</th></tr>
+      </thead>
+      <tbody id="dataBody"></tbody>
+    </table>
+    <div id="statusBox" class="status-wait">読み込み中...</div>
+  </div>
+
+</main>
+
+<div id="copyToast">コピーしました</div>
 
 <script>
-// 対象11地点（地点番号は情報提供地点マスタで確認済み）
+// =========================================================
+// 対象11地点（情報提供地点マスタで確認済みの地点番号）
+// =========================================================
 const STATIONS = [
   { name: '群馬（前橋）', no: 42251 },
   { name: '宇都宮',       no: 41277 },
@@ -72,6 +155,13 @@ const STATIONS = [
   { name: '山梨（山中）', no: 49256 },
 ];
 
+const TOMORROW_HOURS  = [6, 9, 12, 15, 18, 21, 24]; // 翌日7コマ
+const DAYAFTER_HOURS  = [3, 6, 9, 12, 15, 18, 21, 24]; // 翌々日8コマ
+const ALL_HOURS_ORDER = [3, 6, 9, 12, 15, 18, 21, 24];
+
+let currentStation = null;
+
+// ---- ユーティリティ ----
 function pad(n) { return String(n).padStart(2, '0'); }
 function formatDate14(d) {
   return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
@@ -80,32 +170,31 @@ function formatDateSlash(d) {
   return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:00:00`;
 }
 
-// 実行時点(端末のローカル時刻=JST前提)を基準に「翌日」「翌々日」の日付を算出
+// 実行時点(端末のローカル時刻=JST前提)を基準に「翌日」「翌々日」の対象時刻キーを算出
 function getTargetSlots() {
   const now = new Date();
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const dayAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+  const dayAfter  = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
 
-  const tomorrowHours = [6, 9, 12, 15, 18, 21, 24]; // 翌日7コマ
-  const dayAfterHours = [3, 6, 9, 12, 15, 18, 21, 24]; // 翌々日8コマ
+  const slots = { tomorrow: {}, dayAfter: {} };
 
-  const slots = [];
-  tomorrowHours.forEach(h => {
+  TOMORROW_HOURS.forEach(h => {
     const d = new Date(tomorrow);
     d.setHours(h === 24 ? 0 : h, 0, 0, 0);
-    if (h === 24) d.setDate(d.getDate() + 1); // 24時=翌日の0時として扱う
-    slots.push({ column: '翌日', hourLabel: h, key: formatDateSlash(d) });
+    if (h === 24) d.setDate(d.getDate() + 1); // 24時 = 翌々日0時として扱う
+    slots.tomorrow[h] = formatDateSlash(d);
   });
-  dayAfterHours.forEach(h => {
+  DAYAFTER_HOURS.forEach(h => {
     const d = new Date(dayAfter);
     d.setHours(h === 24 ? 0 : h, 0, 0, 0);
     if (h === 24) d.setDate(d.getDate() + 1);
-    slots.push({ column: '翌々日', hourLabel: h, key: formatDateSlash(d) });
+    slots.dayAfter[h] = formatDateSlash(d);
   });
-  return { slots, now };
+  return slots;
 }
 
-async function fetchStation(station) {
+// ---- API呼び出し ----
+async function fetchStationData(station) {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const from = formatDate14(todayStart);
@@ -113,85 +202,154 @@ async function fetchStation(station) {
   const url = `https://www.wbgt.env.go.jp/api/v1/getForecastData?wbgt_nos=${station.no}&location_type=1&date_search_type=1&range_date_from=${from}&range_date_to=${to}`;
 
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`APIエラー（HTTP ${res.status}）`);
   const json = await res.json();
-  if (!json || !Array.isArray(json.data) || json.data.length === 0) {
-    throw new Error('データ0件（該当地点・期間のデータなし）');
+  if (!json || json.status !== 'success' || !Array.isArray(json.data) || json.data.length === 0) {
+    throw new Error('データが取得できませんでした（データ0件）');
   }
+
   const latestRef = json.data.reduce((max, d) => d.reference_time > max ? d.reference_time : max, json.data[0].reference_time);
   const latestOnly = json.data.filter(d => d.reference_time === latestRef);
 
   const byTime = {};
   latestOnly.forEach(d => { byTime[d.forecast_time] = d.forecast_val; });
 
-  return { url, latestRef, byTime };
+  return { latestRef, byTime };
 }
 
-function renderStationCard(station, slots, result, error) {
-  const card = document.createElement('div');
-  card.className = 'station-card';
+// ---- 画面描画 ----
+function renderStationGrid() {
+  const grid = document.getElementById('stationGrid');
+  grid.innerHTML = '';
+  STATIONS.forEach(station => {
+    const btn = document.createElement('button');
+    btn.className = 'station-btn';
+    btn.textContent = station.name;
+    btn.addEventListener('click', () => openStation(station));
+    grid.appendChild(btn);
+  });
+}
 
-  let html = `<h2>${station.name}（地点番号: ${station.no}）</h2>`;
+function showScreen(name) {
+  document.getElementById('screenList').style.display = name === 'list' ? 'block' : 'none';
+  document.getElementById('screenDetail').style.display = name === 'detail' ? 'block' : 'none';
+  document.getElementById('headerSub').textContent = name === 'list' ? '地点を選択してください' : currentStation.name;
+}
 
-  if (error) {
-    html += `<div class="meta status-ng">取得失敗: ${error}</div>`;
-    card.innerHTML = html;
-    return card;
+async function openStation(station) {
+  currentStation = station;
+  showScreen('detail');
+  document.getElementById('stationTitle').textContent = station.name;
+  await loadAndRenderData();
+}
+
+async function loadAndRenderData() {
+  const statusBox = document.getElementById('statusBox');
+  const refInfo = document.getElementById('refInfo');
+  const tbody = document.getElementById('dataBody');
+
+  statusBox.className = 'status-wait';
+  statusBox.textContent = '読み込み中...';
+  refInfo.textContent = '';
+  tbody.innerHTML = '';
+
+  const slots = getTargetSlots();
+
+  try {
+    const result = await fetchStationData(currentStation);
+    refInfo.textContent = `発表時刻: ${result.latestRef}`;
+
+    ALL_HOURS_ORDER.forEach(h => {
+      const tKey = slots.tomorrow[h];
+      const dKey = slots.dayAfter[h];
+
+      const tVal = tKey ? result.byTime[tKey] : undefined;
+      const dVal = dKey ? result.byTime[dKey] : undefined;
+
+      const tCell = !tKey ? '' :
+        (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : '<span class="val-missing">データなし</span>');
+      const dCell = !dKey ? '' :
+        (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : '<span class="val-missing">データなし</span>');
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${h}</td><td>${tCell}</td><td>${dCell}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    statusBox.className = 'status-ok';
+    statusBox.textContent = '取得完了';
+
+    // コピー用に最新データを保持
+    currentStation._latestResult = result;
+    currentStation._latestSlots = slots;
+
+  } catch (err) {
+    statusBox.className = 'status-ng';
+    statusBox.textContent = `取得失敗: ${err.message}`;
+    // 誤った数値を表示しないよう、テーブルは空のまま（時刻列のみ表示）
+    ALL_HOURS_ORDER.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${h}</td><td>—</td><td>—</td>`;
+      tbody.appendChild(tr);
+    });
+    currentStation._latestResult = null;
   }
+}
 
-  html += `<div class="meta">最新発表時刻(reference_time): ${result.latestRef}</div>`;
-  html += `<table><tr><th>時刻</th><th class="col-header">翌日</th><th class="col-header">翌々日</th></tr>`;
+function showToast(msg) {
+  const toast = document.getElementById('copyToast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1500);
+}
 
-  // 時刻ラベルでグルーピング(06,09,12,15,18,21,24 / 03含む)
-  const hourOrder = [3, 6, 9, 12, 15, 18, 21, 24];
-  hourOrder.forEach(h => {
-    const tomorrowSlot = slots.find(s => s.column === '翌日' && s.hourLabel === h);
-    const dayAfterSlot = slots.find(s => s.column === '翌々日' && s.hourLabel === h);
-    const tVal = tomorrowSlot ? result.byTime[tomorrowSlot.key] : undefined;
-    const dVal = dayAfterSlot ? result.byTime[dayAfterSlot.key] : undefined;
+async function copyCurrentData() {
+  if (!currentStation || !currentStation._latestResult) {
+    showToast('コピーできるデータがありません');
+    return;
+  }
+  const result = currentStation._latestResult;
+  const slots = currentStation._latestSlots;
 
-    const tCell = tomorrowSlot
-      ? (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : `<span class="missing">データなし</span>`)
-      : '';
-    const dCell = dayAfterSlot
-      ? (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : `<span class="missing">データなし</span>`)
-      : '';
+  const lines = [];
+  lines.push(currentStation.name);
+  lines.push('');
+  lines.push('時刻\t翌日\t翌々日');
 
-    html += `<tr><td>${h}</td><td>${tCell}</td><td>${dCell}</td></tr>`;
+  ALL_HOURS_ORDER.forEach(h => {
+    const tKey = slots.tomorrow[h];
+    const dKey = slots.dayAfter[h];
+    const tVal = tKey ? result.byTime[tKey] : undefined;
+    const dVal = dKey ? result.byTime[dKey] : undefined;
+    const tCell = !tKey ? '' : (tVal !== undefined ? Math.round(parseFloat(tVal) / 10) : '');
+    const dCell = !dKey ? '' : (dVal !== undefined ? Math.round(parseFloat(dVal) / 10) : '');
+    lines.push(`${h}\t${tCell}\t${dCell}`);
   });
 
-  html += `</table>`;
-  card.innerHTML = html;
-  return card;
+  const tsv = lines.join('\n');
+
+  try {
+    await navigator.clipboard.writeText(tsv);
+    showToast('コピーしました');
+  } catch (err) {
+    showToast('コピーに失敗しました');
+  }
 }
 
-document.getElementById('btnFetchAll').addEventListener('click', async () => {
-  const statusEl = document.getElementById('globalStatus');
-  const resultsEl = document.getElementById('results');
-  resultsEl.innerHTML = '';
-  statusEl.className = 'status-wait';
-  statusEl.textContent = `取得中... (0/${STATIONS.length})`;
-
-  const { slots } = getTargetSlots();
-  let successCount = 0;
-  let errorCount = 0;
-
-  for (let i = 0; i < STATIONS.length; i++) {
-    const station = STATIONS[i];
-    try {
-      const result = await fetchStation(station);
-      resultsEl.appendChild(renderStationCard(station, slots, result, null));
-      successCount++;
-    } catch (err) {
-      resultsEl.appendChild(renderStationCard(station, slots, null, err.message));
-      errorCount++;
-    }
-    statusEl.textContent = `取得中... (${i + 1}/${STATIONS.length})`;
-  }
-
-  statusEl.className = errorCount === 0 ? 'status-ok' : 'status-ng';
-  statusEl.textContent = `完了: 成功 ${successCount}件 / 失敗 ${errorCount}件`;
+// ---- イベント登録 ----
+document.getElementById('btnBack').addEventListener('click', () => {
+  showScreen('list');
 });
+document.getElementById('btnRefresh').addEventListener('click', () => {
+  loadAndRenderData();
+});
+document.getElementById('btnCopy').addEventListener('click', () => {
+  copyCurrentData();
+});
+
+// ---- 初期化 ----
+renderStationGrid();
+showScreen('list');
 </script>
 
 </body>
