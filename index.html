@@ -378,7 +378,118 @@ function exportExcel() {
   }
 }
 
-// ---- PowerPoint出力（色付き表、PptxGenJS使用） ----
+// ---- PowerPoint出力（依頼書サンプル準拠：日ごと2枚、地点×時刻、凡例、評価コメント） ----
+
+// 5段階の色分け・呼称（依頼書サンプルの凡例に準拠）
+const LEGEND_LEVELS = [
+  { label: 'ほぼ安全', bg: '3B82F6', fg: 'FFFFFF', test: v => v < 21 },
+  { label: '注　　意', bg: '22C55E', fg: 'FFFFFF', test: v => v >= 21 && v <= 24 },
+  { label: '警　　戒', bg: 'FDE047', fg: '1A1A1A', test: v => v >= 25 && v <= 27 },
+  { label: '厳重警戒', bg: 'F97316', fg: 'FFFFFF', test: v => v >= 28 && v <= 30 },
+  { label: '活動中止', bg: 'DC2626', fg: 'FFFFFF', test: v => v >= 31 },
+];
+
+// 指定した時刻群における「地点ごとの最大値」と、それに基づく評価コメント情報を算出
+function evaluateDay(hours, slotMap) {
+  const stationMax = {}; // stationName -> 最大値
+  STATIONS.forEach(station => {
+    const result = latestResults[station.no];
+    let max = null;
+    hours.forEach(h => {
+      const key = slotMap[h];
+      const val = result && key ? result.byTime[key] : undefined;
+      if (val !== undefined) {
+        const num = Math.round(parseFloat(val) / 10);
+        if (max === null || num > max) max = num;
+      }
+    });
+    if (max !== null) stationMax[station.name] = max;
+  });
+
+  const over31 = Object.entries(stationMax).filter(([, v]) => v >= 31).map(([name]) => name);
+  const over28 = Object.entries(stationMax).filter(([, v]) => v >= 28 && v <= 30).map(([name]) => name);
+
+  // 31以上の地点が1つでもあれば、31以上のフォーマットのみ使用する
+  if (over31.length > 0) {
+    return {
+      tier: 31,
+      names: over31,
+      text: `東方区内においては、熱中症発生のリスクは大\n　→　${over31.join('、')}は日中に活動中止（３１以上）となることから、特別な場合を除き屋外での活動は中止又は活動時間と休息時間を適切に管理する等の予防が必要`,
+    };
+  }
+  if (over28.length > 0) {
+    return {
+      tier: 28,
+      names: over28,
+      text: `東方区内の一部においては、熱中症発生のリスクが大\n　→　${over28.join('、')}は日中に２８以上（厳重警戒）となるため、屋外での活動を行わなければならない部隊等においては、十分な熱中症予防及び必要により計画の修正等の実施が望ましい。`,
+    };
+  }
+  return null; // 該当なし（コメントなし）
+}
+
+function addReportSlide(pptx, title, hours, slotMap) {
+  const slide = pptx.addSlide();
+
+  slide.addText(title, {
+    x: 0.3, y: 0.15, w: 9, h: 0.5,
+    fontSize: 20, bold: true, color: '1E3A5F',
+  });
+
+  // ---- メイン表：地点(縦) × 時刻(横) ----
+  const headerCellOpt = { bold: true, fill: { color: 'EEEEEE' }, align: 'center', fontSize: 11 };
+  const headerRow = [
+    { text: '地点＼時刻', options: headerCellOpt },
+    ...hours.map(h => ({ text: String(h), options: headerCellOpt })),
+  ];
+
+  const dataRows = STATIONS.map(station => {
+    const result = latestResults[station.no];
+    const cells = [{ text: station.name, options: { bold: true, align: 'center', fontSize: 10, fill: { color: 'F5F5F5' } } }];
+    hours.forEach(h => {
+      const key = slotMap[h];
+      const val = result && key ? result.byTime[key] : undefined;
+      if (val === undefined) {
+        cells.push({ text: '—', options: { align: 'center', fontSize: 10 } });
+      } else {
+        const num = Math.round(parseFloat(val) / 10);
+        const c = colorFor(num);
+        cells.push({ text: String(num), options: { align: 'center', fontSize: 10, fill: { color: c.bg }, color: c.fg } });
+      }
+    });
+    return cells;
+  });
+
+  slide.addTable([headerRow, ...dataRows], {
+    x: 0.3, y: 0.75, w: 9.7, h: 4.6,
+    border: { type: 'solid', color: '999999', pt: 1 },
+    autoPage: false,
+  });
+
+  // ---- 凡例（5段階） ----
+  const legendRow = LEGEND_LEVELS.map(lv => ({
+    text: lv.label,
+    options: { align: 'center', fontSize: 10, fill: { color: lv.bg }, color: lv.fg, bold: true },
+  }));
+  slide.addTable([legendRow], {
+    x: 0.3, y: 5.5, w: 9.7, h: 0.4,
+    border: { type: 'solid', color: '999999', pt: 1 },
+  });
+
+  // ---- 評価コメント（該当時のみ） ----
+  const evalInfo = evaluateDay(hours, slotMap);
+  if (evalInfo) {
+    slide.addText([
+      { text: '評　価\n', options: { bold: true, fontSize: 12, color: '991B1B' } },
+      { text: evalInfo.text, options: { fontSize: 12, color: '1A1A1A' } },
+    ], {
+      x: 0.3, y: 6.05, w: 9.7, h: 1.2,
+      fill: { color: 'FFFFCC' },
+      valign: 'top',
+      margin: 8,
+    });
+  }
+}
+
 function exportPowerPoint() {
   if (!latestResults || !latestSlots) {
     showToast('出力できるデータがありません');
@@ -391,53 +502,11 @@ function exportPowerPoint() {
 
   try {
     const pptx = new PptxGenJS();
-    pptx.defineLayout({ name: 'WIDE', width: 13.33, height: 7.5 });
-    pptx.layout = 'WIDE';
-    const slide = pptx.addSlide();
+    pptx.defineLayout({ name: 'WBGT_LAYOUT', width: 10.2, height: 7.5 });
+    pptx.layout = 'WBGT_LAYOUT';
 
-    const headerCellOpt = { bold: true, fill: { color: 'EEEEEE' }, align: 'center', fontSize: 10 };
-    const headerRow = [
-      { text: '区分', options: headerCellOpt },
-      { text: '時刻', options: headerCellOpt },
-      ...STATIONS.map(s => ({ text: s.name, options: headerCellOpt })),
-    ];
-
-    function buildDataRow(label, h, slotMap) {
-      const cells = [
-        { text: label, options: { bold: true, align: 'center', fontSize: 9 } },
-        { text: String(h), options: { align: 'center', fontSize: 9 } },
-      ];
-      STATIONS.forEach(station => {
-        const result = latestResults[station.no];
-        const key = slotMap[h];
-        const val = result && key ? result.byTime[key] : undefined;
-        if (val === undefined) {
-          cells.push({ text: '—', options: { align: 'center', fontSize: 9 } });
-        } else {
-          const num = Math.round(parseFloat(val) / 10);
-          const c = colorFor(num);
-          cells.push({
-            text: String(num),
-            options: { align: 'center', fontSize: 9, fill: { color: c.bg }, color: c.fg },
-          });
-        }
-      });
-      return cells;
-    }
-
-    const rows = [headerRow];
-    TOMORROW_HOURS.forEach((h, idx) => {
-      rows.push(buildDataRow(idx === 0 ? '翌日' : '', h, latestSlots.tomorrow));
-    });
-    DAYAFTER_HOURS.forEach((h, idx) => {
-      rows.push(buildDataRow(idx === 0 ? '翌々日' : '', h, latestSlots.dayAfter));
-    });
-
-    slide.addTable(rows, {
-      x: 0.3, y: 0.3, w: 12.7, h: 6.8,
-      border: { type: 'solid', color: '999999', pt: 1 },
-      autoPage: false,
-    });
+    addReportSlide(pptx, '翌日のWBGT指数予測値', TOMORROW_HOURS, latestSlots.tomorrow);
+    addReportSlide(pptx, '翌々日のWBGT指数予測値', DAYAFTER_HOURS, latestSlots.dayAfter);
 
     const now = new Date();
     const fname = `wbgt_pptx_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.pptx`;
@@ -450,6 +519,7 @@ function exportPowerPoint() {
     showToast('PowerPoint出力に失敗しました');
   }
 }
+
 
 // ---- イベント登録 ----
 document.getElementById('btnRefresh').addEventListener('click', () => {
